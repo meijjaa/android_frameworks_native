@@ -951,7 +951,8 @@ std::shared_ptr<Layer> Display::getLayerById(hwc2_layer_t id) const
 // Layer methods
 
 Layer::Layer(const std::shared_ptr<Display>& display, hwc2_layer_t id)
-  : mDisplay(display),
+  : magicNumber(0xdeadbeef),
+    mDisplay(display),
     mDisplayId(display->getId()),
     mDevice(display->getDevice()),
     mId(id)
@@ -962,6 +963,7 @@ Layer::Layer(const std::shared_ptr<Display>& display, hwc2_layer_t id)
 
 Layer::~Layer()
 {
+    magicNumber = 0x12345678;
     auto display = mDisplay.lock();
     if (display) {
         display->destroyLayer(mId);
