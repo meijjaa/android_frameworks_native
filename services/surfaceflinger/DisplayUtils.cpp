@@ -71,7 +71,11 @@ DisplayUtils* DisplayUtils::getInstance() {
 }
 
 SurfaceFlinger* DisplayUtils::getSFInstance() {
+<<<<<<< HEAD
 #if defined(QTI_BSP) && !defined(USE_HWC2)
+=======
+#ifdef QTI_BSP
+>>>>>>> cm/cm-14.1
     if(sUseExtendedImpls) {
         return new ExSurfaceFlinger();
     }
@@ -82,7 +86,11 @@ SurfaceFlinger* DisplayUtils::getSFInstance() {
 Layer* DisplayUtils::getLayerInstance(SurfaceFlinger* flinger,
                             const sp<Client>& client, const String8& name,
                             uint32_t w, uint32_t h, uint32_t flags) {
+<<<<<<< HEAD
 #if defined(QTI_BSP) && !defined(USE_HWC2)
+=======
+#ifdef QTI_BSP
+>>>>>>> cm/cm-14.1
     if(sUseExtendedImpls) {
         return new ExLayer(flinger, client, name, w, h, flags);
     }
@@ -90,21 +98,41 @@ Layer* DisplayUtils::getLayerInstance(SurfaceFlinger* flinger,
     return new Layer(flinger, client, name, w, h, flags);
 }
 
+#ifndef USE_HWC2
 HWComposer* DisplayUtils::getHWCInstance(
                         const sp<SurfaceFlinger>& flinger,
                         HWComposer::EventHandler& handler) {
+<<<<<<< HEAD
 #if defined(QTI_BSP) && !defined(USE_HWC2)
+=======
+#ifdef QTI_BSP
+>>>>>>> cm/cm-14.1
     if(sUseExtendedImpls) {
         return new ExHWComposer(flinger, handler);
     }
 #endif
+<<<<<<< HEAD
 #if defined(USE_HWC2)
     (void)handler;
     return new HWComposer(flinger);
 #else
     return new HWComposer(flinger, handler);
 #endif
+=======
+    return new HWComposer(flinger,handler);
 }
+#else
+HWComposer* DisplayUtils::getHWCInstance(
+                        const sp<SurfaceFlinger>& flinger) {
+#ifdef QTI_BSP
+    if(sUseExtendedImpls) {
+        return new ExHWComposer(flinger);
+    }
+#endif
+    return new HWComposer(flinger);
+>>>>>>> cm/cm-14.1
+}
+#endif
 
 void DisplayUtils::initVDSInstance(HWComposer* hwc, int32_t hwcDisplayId,
         sp<IGraphicBufferProducer> currentStateSurface, sp<DisplaySurface> &dispSurface,
@@ -112,7 +140,11 @@ void DisplayUtils::initVDSInstance(HWComposer* hwc, int32_t hwcDisplayId,
         sp<IGraphicBufferConsumer> bqConsumer, String8 currentStateDisplayName,
         bool currentStateIsSecure, int currentStateType)
 {
+<<<<<<< HEAD
 #if defined(QTI_BSP) && !defined(USE_HWC2)
+=======
+#ifdef QTI_BSP
+>>>>>>> cm/cm-14.1
     if(sUseExtendedImpls) {
         if(hwc->isVDSEnabled()) {
             VirtualDisplaySurface* vds = new ExVirtualDisplaySurface(*hwc, hwcDisplayId,
@@ -135,7 +167,11 @@ void DisplayUtils::initVDSInstance(HWComposer* hwc, int32_t hwcDisplayId,
                 currentStateSurface, bqProducer, bqConsumer, currentStateDisplayName);
         dispSurface = vds;
         producer = vds;
+<<<<<<< HEAD
 #if defined(QTI_BSP) && !defined(USE_HWC2)
+=======
+#ifdef QTI_BSP
+>>>>>>> cm/cm-14.1
     }
 #endif
 }
@@ -168,10 +204,18 @@ bool DisplayUtils::createV4L2BasedVirtualDisplay(HWComposer* hwc, int32_t &hwcDi
         surface = eglCreateWindowSurface(display, config, window, NULL);
         eglQuerySurface(display, surface, EGL_WIDTH, &w);
         eglQuerySurface(display, surface, EGL_HEIGHT, &h);
+<<<<<<< HEAD
 #if defined(QTI_BSP) && !defined(USE_HWC2)
         if(hwc->setVirtualDisplayProperties(hwcDisplayId, w, h, format) != NO_ERROR)
             return false;
 #endif
+=======
+#ifndef USE_HWC2
+        if(hwc->setVirtualDisplayProperties(hwcDisplayId, w, h, format) != NO_ERROR)
+            return false;
+#endif
+
+>>>>>>> cm/cm-14.1
         dispSurface = new FramebufferSurface(*hwc, currentStateType, bqConsumer);
         producer = bqProducer;
         return true;
@@ -186,12 +230,16 @@ bool DisplayUtils::canAllocateHwcDisplayIdForVDS(int usage) {
     property_get("debug.vds.allow_hwc", value, "0");
     int allowHwcForVDS = atoi(value);
 
+<<<<<<< HEAD
 #if defined(QTI_BSP) && !defined(USE_HWC2)
+=======
+#ifdef QTI_BSP
+>>>>>>> cm/cm-14.1
     // Do not allow hardware acceleration
     flag_mask = GRALLOC_USAGE_PRIVATE_WFD;
 #endif
 
-    return ((mHasWbNode) && (!allowHwcForVDS) && (usage & flag_mask));
+    return ((mHasWbNode) && (allowHwcForVDS || (usage & flag_mask)));
 }
 
 int DisplayUtils::getNumFbNodes() {

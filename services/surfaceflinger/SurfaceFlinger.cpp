@@ -657,10 +657,14 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         property_get("ro.sf.hwrotation", value, "0");
         int additionalRot = atoi(value) / 90;
         if ((type == DisplayDevice::DISPLAY_PRIMARY) && (additionalRot & DisplayState::eOrientationSwapMask)) {
+            info.h = hwConfig->getWidth();
+            info.w = hwConfig->getHeight();
             info.xdpi = ydpi;
             info.ydpi = xdpi;
         }
         else {
+            info.w = hwConfig->getWidth();
+            info.h = hwConfig->getHeight();
             info.xdpi = xdpi;
             info.ydpi = ydpi;
         }
@@ -1310,7 +1314,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
             const Transform& tr(displayDevice->getTransform());
             const Rect bounds(displayDevice->getBounds());
             if (displayDevice->isDisplayOn()) {
-                SurfaceFlinger::computeVisibleRegions(displayDevice->getHwcDisplayId(), layers,
+                SurfaceFlinger::computeVisibleRegions(dpy, layers,
                         displayDevice->getLayerStack(), dirtyRegion,
                         opaqueRegion);
 
@@ -1870,7 +1874,7 @@ void SurfaceFlinger::commitTransaction()
     mTransactionCV.broadcast();
 }
 
-void SurfaceFlinger::computeVisibleRegions(size_t /* dpy */,
+void SurfaceFlinger::computeVisibleRegions(size_t /*dpy*/,
         const LayerVector& currentLayers, uint32_t layerStack,
         Region& outDirtyRegion, Region& outOpaqueRegion)
 {

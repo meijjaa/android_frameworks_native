@@ -94,7 +94,6 @@ ifeq ($(TARGET_HAS_HH_VSYNC_ISSUE),true)
     LOCAL_CFLAGS += -DHH_VSYNC_ISSUE
 endif
 
-# See build/target/board/generic/BoardConfig.mk for a description of this setting.
 # The following two BoardConfig variables define (respectively):
 #
 #   - The phase offset between hardware vsync and when apps are woken up by the
@@ -167,6 +166,7 @@ ifeq ($(TARGET_USES_QCOM_BSP), true)
     LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libgralloc
     LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libqdutils
   else
+<<<<<<< HEAD
     LOCAL_C_INCLUDES += $(call project-path-for,qcom-display)/libgralloc
     LOCAL_C_INCLUDES += $(call project-path-for,qcom-display)/libqdutils
   endif
@@ -180,6 +180,18 @@ ifeq ($(TARGET_USES_QCOM_BSP), true)
     ExSurfaceFlinger/ExVirtualDisplaySurface.cpp \
     ExSurfaceFlinger/ExHWComposer.cpp
   endif
+=======
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qcom/display
+  endif
+  LOCAL_SHARED_LIBRARIES += libqdutils
+  LOCAL_SHARED_LIBRARIES += libqdMetaData
+  LOCAL_CFLAGS += -DQTI_BSP
+  LOCAL_SRC_FILES += \
+    ExSurfaceFlinger/ExLayer.cpp \
+    ExSurfaceFlinger/ExSurfaceFlinger.cpp \
+    ExSurfaceFlinger/ExVirtualDisplaySurface.cpp \
+    ExSurfaceFlinger/ExHWComposer.cpp
+>>>>>>> cm/cm-14.1
 endif
 
 ifeq ($(BOARD_USES_HWC_SERVICES), true)

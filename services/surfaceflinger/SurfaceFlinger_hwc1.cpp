@@ -164,10 +164,12 @@ SurfaceFlinger::SurfaceFlinger()
         mHWVsyncAvailable(false),
         mDaltonize(false),
         mHasColorMatrix(false),
+        mHasSecondaryColorMatrix(false),
         mHasPoweredOff(false),
         mFrameBuckets(),
         mTotalTime(0),
-        mLastSwapTime(0)
+        mLastSwapTime(0),
+        mActiveFrameSequence(0)
 {
     ALOGI("SurfaceFlinger is starting");
 
@@ -474,11 +476,25 @@ void SurfaceFlinger::init() {
                 sfVsyncPhaseOffsetNs, true, "sf");
         mSFEventThread = new EventThread(sfVsyncSrc, *this);
         mEventQueue.setEventThread(mSFEventThread);
+		
+       // set SFEventThread to SCHED_FIFO to minimize jitter
+       struct sched_param param = {0};
+       param.sched_priority = 2;
+       if (sched_setscheduler(mSFEventThread->getTid(), SCHED_FIFO, &param) != 0) {
+           ALOGE("Couldn't set SCHED_FIFO for SFEventThread");
+       }
     } else {
         sp<VSyncSource> vsyncSrc = new DispSyncSource(&mPrimaryDispSync,
                          vsyncPhaseOffsetNs, true, "sf-app");
         mEventThread = new EventThread(vsyncSrc, *this);
         mEventQueue.setEventThread(mEventThread);
+		
+       // set EventThread to SCHED_FIFO to minimize jitter
+       struct sched_param param = {0};
+       param.sched_priority = 2;
+       if (sched_setscheduler(mEventThread->getTid(), SCHED_FIFO, &param) != 0) {
+           ALOGE("Couldn't set SCHED_FIFO for SFEventThread");
+       }
     }
 
     // set SFEventThread to SCHED_FIFO to minimize jitter
@@ -686,10 +702,14 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         property_get("ro.sf.hwrotation", value, "0");
         int additionalRot = atoi(value) / 90;
         if ((type == DisplayDevice::DISPLAY_PRIMARY) && (additionalRot & DisplayState::eOrientationSwapMask)) {
+            info.h = hwConfig.width;
+            info.w = hwConfig.height;
             info.xdpi = ydpi;
             info.ydpi = xdpi;
         }
         else {
+            info.w = hwConfig.width;
+            info.h = hwConfig.height;
             info.xdpi = xdpi;
             info.ydpi = ydpi;
         }
@@ -858,10 +878,53 @@ status_t SurfaceFlinger::getAnimationFrameStats(FrameStats* outStats) const {
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& /*display*/,
+status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
         HdrCapabilities* outCapabilities) const {
-    // HWC1 does not provide HDR capabilities
+
+    if (!display.get())
+        return NAME_NOT_FOUND;
+
+    int32_t type = NAME_NOT_FOUND;
+    for (int i=0 ; i < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES ; i++) {
+        if (display == mBuiltinDisplays[i]) {
+            type = i;
+            break;
+        }
+    }
+
+    if (type < 0) {
+        return type;
+    }
+
+#ifdef QTI_BSP
+    // Call into display.qservice
+    Parcel reply;
+    sp<IServiceManager> sm(defaultServiceManager());
+    sp<IBinder> binder =
+        sm->getService(String16("display.qservice"));
+    Parcel input;
+    input.writeInterfaceToken(String16("android.display.IQService"));
+    input.writeInt32(type);
+    // GET_HDR_CAPABILITIES = 35 from IQService.h
+    binder->transact(35, input, &reply);
+    if (outCapabilities != nullptr) {
+        outCapabilities->readFromParcel(&reply);
+        if (outCapabilities->getSupportedHdrTypes().size() != 0) {
+            ALOGD("HDR support on display: %d", type);
+            for (auto hdrtype : outCapabilities->getSupportedHdrTypes()) {
+                ALOGD(" HDR type: %d", hdrtype);
+            }
+            ALOGD(" HDR max luminance: %f", outCapabilities->getDesiredMaxLuminance());
+            ALOGD(" HDR max avg luminance: %f",
+                  outCapabilities->getDesiredMaxAverageLuminance());
+            ALOGD(" HDR min luminance: %f", outCapabilities->getDesiredMinLuminance());
+        } else {
+            ALOGI("HDR is not supported on display: %d", type);
+        }
+    }
+#else
     *outCapabilities = HdrCapabilities();
+#endif
     return NO_ERROR;
 }
 
@@ -1287,7 +1350,8 @@ void SurfaceFlinger::setUpHWComposer() {
                         for (size_t i=0 ; cur!=end && i<count ; ++i, ++cur) {
                             const sp<Layer>& layer(currentLayers[i]);
                             layer->setGeometry(hw, *cur);
-                            if (mDebugDisableHWC || mDebugRegion || mDaltonize || mHasColorMatrix) {
+                            if (mDebugDisableHWC || mDebugRegion || mDaltonize || mHasColorMatrix
+                                    || mHasSecondaryColorMatrix) {
                                 cur->setSkip(true);
                             }
                         }
@@ -1363,6 +1427,8 @@ void SurfaceFlinger::doComposition() {
 
             // repaint the framebuffer (if needed)
             doDisplayComposition(hw, dirtyRegion);
+
+            ++mActiveFrameSequence;
 
             hw->dirtyRegion.clear();
             hw->flip(hw->swapRegion);
@@ -2047,11 +2113,15 @@ void SurfaceFlinger::doDisplayComposition(const sp<const DisplayDevice>& hw,
         }
     }
 
-    if (CC_LIKELY(!mDaltonize && !mHasColorMatrix)) {
+    if (CC_LIKELY(!mDaltonize && !mHasColorMatrix && !mHasSecondaryColorMatrix)) {
         if (!doComposeSurfaces(hw, dirtyRegion)) return;
     } else {
         RenderEngine& engine(getRenderEngine());
         mat4 colorMatrix = mColorMatrix;
+        if (mHasSecondaryColorMatrix) {
+            colorMatrix = mHasColorMatrix
+                    ? (colorMatrix * mSecondaryColorMatrix) : mSecondaryColorMatrix;
+        }
         if (mDaltonize) {
             colorMatrix = colorMatrix * mDaltonizer();
         }
@@ -3141,7 +3211,8 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.appendFormat("  h/w composer %s and %s\n",
             hwc.initCheck()==NO_ERROR ? "present" : "not present",
                     (mDebugDisableHWC || mDebugRegion || mDaltonize
-                            || mHasColorMatrix) ? "disabled" : "enabled");
+                            || mHasColorMatrix
+                            || mHasSecondaryColorMatrix) ? "disabled" : "enabled");
     hwc.dump(result);
 
     /*
@@ -3361,6 +3432,27 @@ status_t SurfaceFlinger::onTransact(
             case 1021: { // Disable HWC virtual displays
                 n = data.readInt32();
                 mUseHwcVirtualDisplays = !n;
+                return NO_ERROR;
+            }
+            case 1030: {
+                // apply a secondary color matrix
+                // this will be combined with any other transformations
+                n = data.readInt32();
+                mHasSecondaryColorMatrix = n ? 1 : 0;
+                if (n) {
+                    // color matrix is sent as mat3 matrix followed by vec3
+                    // offset, then packed into a mat4 where the last row is
+                    // the offset and extra values are 0
+                    for (size_t i = 0 ; i < 4; i++) {
+                        for (size_t j = 0; j < 4; j++) {
+                            mSecondaryColorMatrix[i][j] = data.readFloat();
+                        }
+                    }
+                } else {
+                    mSecondaryColorMatrix = mat4();
+                }
+                invalidateHwcGeometry();
+                repaintEverything();
                 return NO_ERROR;
             }
         }
@@ -3698,6 +3790,8 @@ status_t SurfaceFlinger::captureScreenImplLocked(
                 reqWidth, reqHeight, hw_w, hw_h);
         return BAD_VALUE;
     }
+
+    ++mActiveFrameSequence;
 
     reqWidth  = (!reqWidth)  ? hw_w : reqWidth;
     reqHeight = (!reqHeight) ? hw_h : reqHeight;
