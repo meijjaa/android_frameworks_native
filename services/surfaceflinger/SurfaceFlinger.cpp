@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <stdint.h>
@@ -123,6 +123,25 @@ static const int64_t vsyncPhaseOffsetNs = VSYNC_EVENT_PHASE_OFFSET_NS;
 // This is the phase offset at which SurfaceFlinger's composition runs.
 static const int64_t sfVsyncPhaseOffsetNs = SF_VSYNC_EVENT_PHASE_OFFSET_NS;
 
+#define SYSFS_FB0_BLANK       "/sys/class/graphics/fb0/blank"
+#define SYSFS_PPMGR_SCALE  "/sys/class/ppmgr/ppscaler"
+#define SYSFS_PPMGR_SCALE_RECT "/sys/class/ppmgr/ppscaler_rect"
+#define SYSFS_FB0_FREESCALE      "/sys/class/graphics/fb0/free_scale"
+#define SYSFS_FB0_SCALE_AXIS   "/sys/class/graphics/fb0/scale_axis"
+#define SYSFS_FB0_SCALE        "/sys/class/graphics/fb0/scale"
+#define SYSFS_FB1_SCALE     "/sys/class/graphics/fb1/scale"
+#define SYSFS_FB1_SCALE_AXIS  "/sys/class/graphics/fb1/scale_axis"
+#define SYSFS_VIDEO_AXIS     "/sys/class/video/axis"
+#define SYSFS_DISPLAY_AXIS   "/sys/class/display/axis"
+#define SYSFS_VIDEOLAYERSTATE "/sys/class/video/video_layer1_state"
+
+#define SYSCMD_BUFSIZE   32
+
+int amsysfsSetStr(const char *path, const char *val);
+int amsysfsGetStr(const char *path, char *valstr, int size);
+int amsysfsGetInt(const char *path);
+int waitVideoUnreg();
+
 // ---------------------------------------------------------------------------
 
 const String16 sHardwareTest("android.permission.HARDWARE_TEST");
@@ -170,6 +189,9 @@ SurfaceFlinger::SurfaceFlinger()
         mActiveFrameSequence(0)
 {
     ALOGI("SurfaceFlinger is starting");
+
+    //disable dump fps;
+    mEnableFps = false;
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -256,6 +278,7 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName,
     Mutex::Autolock _l(mStateLock);
     DisplayDeviceState info(DisplayDevice::DISPLAY_VIRTUAL, secure);
     info.displayName = displayName;
+    info.expected3DFormat = 0;
     mCurrentState.displays.add(token, info);
 
     return token;
@@ -287,6 +310,7 @@ void SurfaceFlinger::createBuiltinDisplayLocked(DisplayDevice::DisplayType type)
     mBuiltinDisplays[type] = new BBinder();
     // All non-virtual displays are currently considered secure.
     DisplayDeviceState info(type, true);
+    info.expected3DFormat = 0;
     mCurrentState.displays.add(mBuiltinDisplays[type], info);
 }
 
@@ -331,6 +355,20 @@ void SurfaceFlinger::bootFinished()
     hwc->setBootFinished();
 #endif
 
+    char value[PROPERTY_VALUE_MAX] = {0};
+    property_get("service.bootvideo", value, "0");
+    if (atoi(value) == 1) {
+        //stop boot video
+        do {
+            //wait bootvideo daemon exit
+            property_get("init.svc.bootvideo", value, "NULL");
+        } while (!strcmp(value, "running"));
+        property_set("service.bootvideo.exit", "1");
+
+        ALOGI("boot video exited, open osd");
+        amsysfsSetStr(SYSFS_FB0_BLANK, "0");
+        amsysfsSetStr("/sys/class/video/disable_video", "2");
+    }
     const int LOGTAG_SF_STOP_BOOTANIM = 60110;
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
@@ -537,9 +575,17 @@ void SurfaceFlinger::init() {
 }
 
 void SurfaceFlinger::startBootAnim() {
-    // start boot animation
-    property_set("service.bootanim.exit", "0");
-    property_set("ctl.start", "bootanim");
+    char value[PROPERTY_VALUE_MAX] = {0};
+    property_get("service.bootvideo", value, "0");
+    if (atoi(value) == 1) {
+        // start boot video
+        property_set("ctl.start", "bootvideo");
+    }
+    else {
+        // start boot animation
+        property_set("service.bootanim.exit", "0");
+        property_set("ctl.start", "bootanim");
+    }
 }
 
 size_t SurfaceFlinger::getMaxTextureSize() const {
@@ -1011,6 +1057,11 @@ void SurfaceFlinger::onHotplugReceived(int32_t disp, bool connected) {
     if (disp == DisplayDevice::DISPLAY_PRIMARY) {
         Mutex::Autolock lock(mStateLock);
 
+#ifdef USE_AML_HW_ACTIVE_MODE
+        if (mDisplays.isEmpty()) {
+            ALOGV("onHotplugReceived initial primary display here.");
+#endif
+
         // All non-virtual displays are currently considered secure.
         bool isSecure = true;
 
@@ -1029,6 +1080,14 @@ void SurfaceFlinger::onHotplugReceived(int32_t disp, bool connected) {
                 DisplayDevice::DISPLAY_PRIMARY, disp, isSecure, token, fbs,
                 producer, mRenderEngine->getEGLConfig());
         mDisplays.add(token, hw);
+
+#ifdef USE_AML_HW_ACTIVE_MODE
+        } else if (!mDisplays.isEmpty( )) {
+            ALOGD("onHotplugReceived update primary display config here.");
+            setTransactionFlags(eDisplayTransactionNeeded | ePrimaryHotplugTranscation);
+        }
+#endif
+
     } else {
         auto type = DisplayDevice::DISPLAY_EXTERNAL;
         Mutex::Autolock _l(mStateLock);
@@ -1222,6 +1281,18 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
 
     mFenceTracker.addFrame(refreshStartTime, presentFence,
             hw->getVisibleLayersSortedByZ(), hw->getClientTargetAcquireFence());
+
+    if (mEnableFps) {
+        if (presentFence->isValid()) {
+            mFpsTracker.setActualPresentFence(presentFence);
+        } else {
+            nsecs_t presentTime = mHwc->getRefreshTimestamp(HWC_DISPLAY_PRIMARY);
+            mFpsTracker.setActualPresentTime(presentTime);
+        }
+
+        mFpsTracker.advanceFrame();
+        mFpsTracker.logIntimeFps(false);
+    }
 
     if (mAnimCompositionPending) {
         mAnimCompositionPending = false;
@@ -1450,7 +1521,7 @@ void SurfaceFlinger::postFramebuffer()
             mHwc->commit(hwcId);
         }
         displayDevice->onSwapBuffersCompleted();
-        if (displayId == 0) {
+        if (hwcId == 0) {
             // Make the default display current because the VirtualDisplayDevice
             // code cannot deal with dequeueBuffer() being called outside of the
             // composition loop; however the code below can call glFlush() which
@@ -1543,6 +1614,14 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
      */
 
     if (transactionFlags & eDisplayTransactionNeeded) {
+
+#ifdef USE_AML_HW_ACTIVE_MODE
+        // deal Primary display hotplug
+        if (transactionFlags & ePrimaryHotplugTranscation) {
+            mEventThread->onHotplugReceived(DisplayDevice::DISPLAY_PRIMARY, true);
+        }
+#endif
+
         // here we take advantage of Vector's copy-on-write semantics to
         // improve performance by skipping the transaction entirely when
         // know that the lists are identical
@@ -2091,6 +2170,72 @@ void SurfaceFlinger::doDisplayComposition(const sp<const DisplayDevice>& hw,
     hw->swapBuffers(getHwComposer());
 }
 
+int waitVideoUnreg()
+{
+    int ret = 0;
+    int waitcount = 0;
+    char buf[32]={0};
+    ret = amsysfsGetStr("/sys/module/amvideo/parameters/new_frame_count", buf, 32);
+    while ((ret >= 0) && (!strstr(buf, "0"))) {
+        if (waitcount > 500) {
+            return -1;
+        }
+        waitcount++;
+        usleep(500);
+        memset(buf,0,sizeof(buf));
+        ret = amsysfsGetStr("/sys/module/amvideo/parameters/new_frame_count", buf, 32);
+    }
+    return 0;
+}
+
+int  amsysfsGetStr(const char *path, char *valstr, int size)
+{
+    int fd;
+    int count = 0;
+    fd = open(path, O_RDONLY);
+    if (fd >= 0) {
+        count = read(fd, valstr, size - 1);
+        valstr[count] = '\0';
+        close(fd);
+    } else {
+        sprintf(valstr, "%s", "fail");
+        return -1;
+    };
+
+    return 0;
+}
+
+int amsysfsSetStr(const char *path, const char *val)
+{
+    int fd;
+    int bytes;
+    fd = open(path, O_CREAT | O_RDWR | O_TRUNC, 0644);
+    if (fd >= 0) {
+        bytes = write(fd, val, strlen(val));
+        ALOGI("amsysfsSetStr %s= %s\n", path,val);
+        close(fd);
+        return 0;
+    } else {
+    }
+    return -1;
+}
+
+int amsysfsGetInt(const char *path)
+{
+    int fd;
+    int val = 0;
+    char  bcmd[16];
+    fd = open(path, O_RDONLY);
+    if (fd >= 0) {
+        read(fd, bcmd, sizeof(bcmd));
+        val = strtol(bcmd, NULL, 10);
+        close(fd);
+    } else {
+        ALOGE("amsysfsGetInt %s, err: %s", path, strerror(errno));
+    }
+    return val;
+}
+
 bool SurfaceFlinger::doComposeSurfaces(
         const sp<const DisplayDevice>& displayDevice, const Region& dirty)
 {
@@ -2424,6 +2569,12 @@ uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s)
                 flags |= eDisplayTransactionNeeded;
             }
         }
+        if (what & DisplayState::e3dChanged) {
+            if (disp.expected3DFormat != s.want3D) {
+                ALOGD("----- 3d Format  changed --format %u- ", s.e3dChanged);
+                disp.expected3DFormat = s.want3D;
+            }
+        }
     }
     return flags;
 }
@@ -2676,6 +2827,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.viewport.makeInvalid();
     d.width = 0;
     d.height = 0;
+    d.want3D = 0;
     displays.add(d);
     setTransactionState(state, displays, 0);
     setPowerModeInternal(getDisplayDevice(d.token), HWC_POWER_MODE_NORMAL);
@@ -2683,6 +2835,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
     const nsecs_t period = activeConfig->getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(period);
+    mFpsTracker.setDisplayRefreshPeriod(period);
 }
 
 void SurfaceFlinger::initializeDisplays() {
@@ -2824,6 +2977,30 @@ status_t SurfaceFlinger::dump(int fd, const Vector<String16>& args)
                     (args[index] == String16("--latency"))) {
                 index++;
                 dumpStatsLocked(args, index, result);
+                dumpAll = false;
+            }
+
+            if ((index < numArgs) &&
+                    (args[index] == String16("--fps"))) {
+                index++;
+
+                if ((index < numArgs) && (args[index] == String16("start")) ) {
+                    if (mEnableFps == false) {
+                        mEnableFps = true;
+                        mFpsTracker.clearStats();
+                    }
+                } else if ((index < numArgs) && (args[index] == String16("stop")) ) {
+                    if (mEnableFps) {
+                        mEnableFps = false;
+                        result.append("Dump tracked fps data: \n");
+                        mFpsTracker.dumpStats(result);
+                     }
+                } else {
+                    result.append("fps dump use 'dumpsys SurfaceFlinger --fps start/stop', just dump frames data now: \n ");
+                    mFpsTracker.dumpStats(result);
+                }
+
+                index++;
                 dumpAll = false;
             }
 

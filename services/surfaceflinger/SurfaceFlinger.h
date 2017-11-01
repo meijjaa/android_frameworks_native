@@ -86,7 +86,19 @@ enum {
     eTransactionNeeded        = 0x01,
     eTraversalNeeded          = 0x02,
     eDisplayTransactionNeeded = 0x04,
+#ifndef USE_AML_HW_ACTIVE_MODE
     eTransactionMask          = 0x07
+#else
+    ePrimaryHotplugTranscation= 0x10,
+    eTransactionMask          = 0x1f
+#endif
+};
+
+enum {
+    e3dOff                  = 0x00,
+    e3dLeftRight            = 0x01,
+    e3dTopBottom            = 0x02,
+    e3dMask                 = 0x0f
 };
 
 class SurfaceFlinger : public BnSurfaceComposer,
@@ -193,6 +205,7 @@ private:
         Rect frame;
         uint8_t orientation;
         uint32_t width, height;
+        uint32_t expected3DFormat;
         String8 displayName;
         bool isSecure;
     };
@@ -659,6 +672,8 @@ private:
      * In case of display mirroring, this variable should be increased on every display.
      */
     uint32_t mActiveFrameSequence;
+    FrameTracker mFpsTracker;
+    bool mEnableFps;
 };
 
 }; // namespace android

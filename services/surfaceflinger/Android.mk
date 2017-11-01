@@ -42,7 +42,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_C_INCLUDES := \
 	frameworks/native/vulkan/include \
-	external/vulkan-validation-layers/libs/vkjson
+	external/vulkan-validation-layers/libs/vkjson \
+	hardware/amlogic/gralloc
 
 LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
 
@@ -74,6 +75,14 @@ ifeq ($(TARGET_DISABLE_TRIPLE_BUFFERING),true)
     LOCAL_CFLAGS += -DTARGET_DISABLE_TRIPLE_BUFFERING
 endif
 
+ifneq ($(TARGET_DISABLE_SKIP_3D_OSDOMX_LAYER),true)
+    LOCAL_CFLAGS += -DSKIP_3D_OSDOMX_LAYER
+endif
+
+ifneq ($(TARGET_DISABLE_REDUCE_VIDEO_WORKLOAD),true)
+LOCAL_CFLAGS += -DREDUCE_VIDEO_WORKLOAD
+endif
+
 ifeq ($(TARGET_FORCE_HWC_FOR_VIRTUAL_DISPLAYS),true)
     LOCAL_CFLAGS += -DFORCE_HWC_COPY_FOR_VIRTUAL_DISPLAYS
 endif
@@ -89,6 +98,12 @@ endif
 ifeq ($(TARGET_HAS_HH_VSYNC_ISSUE),true)
     LOCAL_CFLAGS += -DHH_VSYNC_ISSUE
 endif
+# The following is a workaround for AMLogic's HWC , and allows
+# GPU compositioning of 4k surfaces to take place. Without it GPU compositions
+# of 4k surfaces display the top left 1080p sub-rect of the surface, rather than
+# downscaling to the SF composition buffer size.
+# use hardware scale on gui layer.
+LOCAL_CFLAGS += -DUSE_AML_HW_POST_SCALE
 
 # The following two BoardConfig variables define (respectively):
 #
@@ -141,6 +156,8 @@ endif
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 LOCAL_CFLAGS += -std=c++14
 
+LOCAL_CFLAGS += -DUSE_AML_HW_ACTIVE_MODE
+
 LOCAL_STATIC_LIBRARIES := libvkjson
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
@@ -191,6 +208,11 @@ ifeq ($(BOARD_USES_HWC_SERVICES), true)
 LOCAL_ADDITIONAL_DEPENDENCIES := \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 endif
+
+LOCAL_STATIC_LIBRARIES += libomxutil
+OMX_UTIL_DIR := hardware/amlogic/hwcomposer/tvp
+LOCAL_C_INCLUDES += \
+    $(OMX_UTIL_DIR)
 
 LOCAL_MODULE := libsurfaceflinger
 

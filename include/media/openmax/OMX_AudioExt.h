@@ -48,6 +48,10 @@ typedef enum OMX_AUDIO_CODINGEXTTYPE {
     OMX_AUDIO_CodingAndroidAC3,         /**< AC3 encoded data */
     OMX_AUDIO_CodingAndroidOPUS,        /**< OPUS encoded data */
     OMX_AUDIO_CodingAndroidEAC3,        /**< EAC3 encoded data */
+    OMX_AUDIO_CodingAndroidDTSHD,        /**< DTSHD encoded data */
+    OMX_AUDIO_CodingAndroidALAC,
+    OMX_AUDIO_CodingAndroidTRUEHD,
+    OMX_AUDIO_CodingFFMPEG,              /**< ffmpeg audio encoded data */
 } OMX_AUDIO_CODINGEXTTYPE;
 
 typedef struct OMX_AUDIO_PARAM_ANDROID_AC3TYPE {
@@ -67,6 +71,15 @@ typedef struct OMX_AUDIO_PARAM_ANDROID_EAC3TYPE {
     OMX_U32 nSampleRate;           /**< Sampling rate of the source data.  Use 0 for
                                         variable or unknown sampling rate. */
 } OMX_AUDIO_PARAM_ANDROID_EAC3TYPE;
+
+typedef struct OMX_AUDIO_PARAM_DOLBYAUDIOTYPE {
+    OMX_U32 nSize;            /**< size of the structure in bytes */
+    OMX_VERSIONTYPE nVersion; /**< OMX specification version information */
+    OMX_U32 nPortIndex;       /**< port that this structure applies to */
+    OMX_BOOL bExtendFormat;        /**< Using extend format for output  4Bytes PCM size + pcm data + 4Bytes Raw size + Raw data*/
+    OMX_U32 nAudioCodec;      /**< AudioCodec.  1.ac3 2.eac3. */
+} OMX_AUDIO_PARAM_DOLBYAUDIOTYPE;
+
 
 typedef struct OMX_AUDIO_PARAM_ANDROID_OPUSTYPE {
     OMX_U32 nSize;            /**< size of the structure in bytes */
@@ -103,6 +116,84 @@ typedef struct OMX_AUDIO_PARAM_ANDROID_PROFILETYPE {
    OMX_U32 nProfileIndex; /**< Used to query for individual profile support information */
 } OMX_AUDIO_PARAM_ANDROID_PROFILETYPE;
 
+typedef struct OMX_AUDIO_PARAM_ANDROID_DTSHDTYPE {
+    OMX_U32 nSize;            /**< Size of this structure, in Bytes */
+    OMX_VERSIONTYPE nVersion; /**< OMX specification version information */
+    OMX_U32 nPortIndex;       /**< Port that this structure applies to */
+
+    OMX_U16 nChannels;
+    OMX_U32 nSamplesPerSec;
+    OMX_U16 bitwidth;
+    OMX_BOOL bExtendFormat;   /**< Using extend format for output 4Bytes PCM size + pcm data + 4Bytes Raw size + Raw data */
+    int HwHDPCMoutCap;
+    int HwMulChoutCap;
+} OMX_AUDIO_PARAM_ANDROID_DTSHDTYPE;
+
+typedef struct OMX_AUDIO_PARAM_ANDROID_ASFTYPE {
+    OMX_U32 nSize;            /**< Size of this structure, in Bytes */
+    OMX_VERSIONTYPE nVersion; /**< OMX specification version information */
+    OMX_U32 nPortIndex;       /**< Port that this structure applies to */
+
+    OMX_U16 wFormatTag;
+    OMX_U16 nChannels;
+    OMX_U32 nSamplesPerSec;
+    OMX_U32 nAvgBitratePerSec;
+    OMX_U16 nBlockAlign;
+    OMX_U16 wBitsPerSample;
+    OMX_U16 extradata_size;
+    OMX_U8  extradata[128];
+} OMX_AUDIO_PARAM_ASFTYPE;
+
+/** Ffmpeg params */
+typedef struct OMX_AUDIO_PARAM_FFMPEGTYPE {
+    OMX_U32 nSize;              /**< Size of this structure, in Bytes */
+    OMX_VERSIONTYPE nVersion;   /**< OMX specification version information */
+    OMX_U32 nPortIndex;         /**< Port that this structure applies to */
+    OMX_U32 nChannels;          /**< Number of channels */
+    OMX_U32 nBitRate;           /**< Bit rate of the input data.  Use 0 for variable
+                                                                  rate or unknown bit rates */
+    OMX_U32 nSamplingRate;      /**< is the sampling rate of the source data */
+    OMX_U32 nBitPerSample;      /**< Bit per sample */
+    OMX_U32 nBlockAlign;        /**< block align */
+    OMX_U32 nCodecID;           /**<codec id **/
+    OMX_U32 nExtraData_Size;     /** extra data size **/
+    OMX_U8 nExtraData[1];          /** extra data point **/
+} OMX_AUDIO_PARAM_FFMPEGTYPE;
+
+typedef struct OMX_AUDIO_PARAM_ANDROID_APETYPE {
+    OMX_U32 nSize;            /**< Size of this structure, in Bytes */
+    OMX_VERSIONTYPE nVersion; /**< OMX specification version information */
+    OMX_U32 nPortIndex;       /**< Port that this structure applies to */
+
+    OMX_U16 nChannels;
+    OMX_U32 nSamplesPerSec;
+    OMX_U16 wBitsPerSample;
+    OMX_U16 extradata_size;
+    OMX_U8  *extradata;
+} OMX_AUDIO_PARAM_APETYPE;
+
+typedef struct OMX_AUDIO_PARAM__ANDROID_TRUEHDTYPE {
+    OMX_U32 nSize; /**< size of the structure in bytes */
+    OMX_VERSIONTYPE nVersion; /**< OMX specification version information */
+    OMX_U32 nPortIndex; /**< port that this structure applies to */
+
+    OMX_U16 nChannels;
+    OMX_U32 nSamplesPerSec;
+    OMX_U16 wBitsPerSample;
+    OMX_BOOL bExtendFormat; /**< Using extend format for output 4Bytes PCM size + pcm data + 4Bytes Raw size + Raw data*/
+    OMX_U32 nAudioCodec; /**< AudioCodec. 1.ac3 2.eac3. */
+} OMX_AUDIO_PARAM__ANDROID_TRUEHDTYPE;
+
+typedef struct OMX_AUDIO_PARAM_ANDROID_ALACTYPE {
+    OMX_U32 nSize;            /**< Size of this structure, in Bytes */
+    OMX_VERSIONTYPE nVersion; /**< OMX specification version information */
+    OMX_U32 nPortIndex;       /**< Port that this structure applies to */
+
+    OMX_U16 nChannels;
+    OMX_U32 nSamplesPerSec;
+    OMX_U16 extradata_size;
+    OMX_U8 *extradata;
+} OMX_AUDIO_PARAM_ALACTYPE;
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

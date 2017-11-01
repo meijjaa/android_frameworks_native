@@ -40,6 +40,10 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
+#if defined(SKIP_3D_OSDOMX_LAYER) || defined(REDUCE_VIDEO_WORKLOAD)
+#include <gralloc_usage_ext.h>
+#endif
+
 namespace android {
 
 BufferQueueProducer::BufferQueueProducer(const sp<BufferQueueCore>& core) :
@@ -916,7 +920,26 @@ status_t BufferQueueProducer::queueBuffer(int slot,
 
     // Don't send the GraphicBuffer through the callback, and don't send
     // the slot number, since the consumer shouldn't need it
-    item.mGraphicBuffer.clear();
+#if defined(SKIP_3D_OSDOMX_LAYER) || defined(REDUCE_VIDEO_WORKLOAD)
+    uint32_t usage = 0;
+    if (item.mGraphicBuffer != 0) {
+        usage = item.mGraphicBuffer->getUsage();
+    }
+#endif
+#ifdef SKIP_3D_OSDOMX_LAYER
+    if (!(usage & GRALLOC_USAGE_AML_DMA_BUFFER)) {
+#endif
+#ifdef REDUCE_VIDEO_WORKLOAD
+    if (!((usage & GRALLOC_USAGE_AML_OMX_OVERLAY)
+        && (usage & GRALLOC_USAGE_AML_VIDEO_OVERLAY))) {
+#endif
+        item.mGraphicBuffer.clear();
+#ifdef REDUCE_VIDEO_WORKLOAD
+    }
+#endif
+#ifdef SKIP_3D_OSDOMX_LAYER
+    }
+#endif
     item.mSlot = BufferItem::INVALID_BUFFER_SLOT;
 
     // Call back without the main BufferQueue lock held, but with the callback

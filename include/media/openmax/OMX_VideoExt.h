@@ -40,6 +40,22 @@ extern "C" {
  */
 #include <OMX_Core.h>
 
+#include <OMX_Video.h>
+
+/** add by amlogic */
+typedef enum OMX_VIDEO_CODINGEXTTYPE {
+    OMX_VIDEO_ExtCodingUnused = OMX_VIDEO_CodingVendorStartUnused,
+    OMX_VIDEO_CodingVC1,
+    OMX_VIDEO_CodingVP6,        /**< VP6 */
+    OMX_VIDEO_CodingMSMPEG4,    /**< MSMPEG4 */
+    OMX_VIDEO_CodingSorenson,  /**< Sorenson codec*/
+    OMX_VIDEO_CodingWMV3,
+    OMX_VIDEO_CodingVPX,        /**< Google VPX, formerly known as On2 VP6 */
+    OMX_VIDEO_CodingRV10,         /**< all versions of Real Video */
+    OMX_VIDEO_CodingRV20,
+    OMX_VIDEO_CodingRV30,
+    OMX_VIDEO_CodingRV40,		  /**< all versions of Real Video */
+} OMX_VIDEO_CODINGEXTTYPE;
 /** NALU Formats */
 typedef enum OMX_NALUFORMATSTYPE {
     OMX_NaluFormatStartCodes = 1,
@@ -245,6 +261,20 @@ typedef struct OMX_VIDEO_SLICESEGMENTSTYPE {
     OMX_BOOL bDepedentSegments;
     OMX_BOOL bEnableLoopFilterAcrossSlices;
 } OMX_VIDEO_SLICESEGMENTSTYPE;
+
+typedef struct OMX_VIDEO_FORCESHUTDOWMCOMPONENT{
+    OMX_U32 nSize;
+    OMX_VERSIONTYPE nVersion;
+    OMX_U32 nPortIndex;
+    OMX_BOOL isForceShutdowm;
+} OMX_VIDEO_FORCESHUTDOWMCOMPONENT;
+
+typedef struct OMX_VIDEO_PARAM_IS_MVC {
+    OMX_U32 nSize;
+    OMX_VERSIONTYPE nVersion;
+    OMX_U32 nPortIndex;
+    OMX_BOOL bIsMVC;
+} OMX_VIDEO_PARAM_IS_MVC;
 
 /** Structure to return timestamps of rendered output frames as well as EOS
  *  for tunneled components.

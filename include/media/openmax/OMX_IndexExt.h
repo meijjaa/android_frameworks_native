@@ -61,6 +61,13 @@ typedef enum OMX_INDEXEXTTYPE {
     OMX_IndexParamAudioAndroidOpus,                 /**< reference: OMX_AUDIO_PARAM_ANDROID_OPUSTYPE */
     OMX_IndexParamAudioAndroidAacPresentation,      /**< reference: OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE */
     OMX_IndexParamAudioAndroidEac3,                 /**< reference: OMX_AUDIO_PARAM_ANDROID_EAC3TYPE */
+    OMX_IndexParamAudioAndroidDtshd,               /**< reference: OMX_AUDIO_PARAM_ANDROID_DTSHDTYPE */
+    OMX_IndexParamAudioAndroidAsf,    /**< reference: OMX_AUDIO_PARAM_ANDROID_ASFTYPE */
+    OMX_IndexParamAudioAndroidApe,/**< reference: OMX_AUDIO_PARAM_ANDROID_APETYPE */
+    OMX_IndexParamAudioAndroidAlac,               /**< reference: OMX_AUDIO_PARAM_ANDROID_ALACTYPE */
+    OMX_IndexParamAudioAndroidTruehd,             /**< reference: OMX_AUDIO_PARAM_ANDROID_TRUEHDTYPE */
+    OMX_IndexParamAudioFFmpeg,
+    OMX_IndexParamAudioDolbyAudio, /**< reference: OMX_AUDIO_PARAM_DOLBYAUDIOTYPE */
     OMX_IndexParamAudioProfileQuerySupported,       /**< reference: OMX_AUDIO_PARAM_ANDROID_PROFILETYPE */
 
     /* Image parameters and configurations */
@@ -81,6 +88,9 @@ typedef enum OMX_INDEXEXTTYPE {
     OMX_IndexParamAndroidVideoTemporalLayering,     /**< reference: OMX_VIDEO_PARAM_ANDROID_TEMPORALLAYERINGTYPE */
     OMX_IndexConfigAndroidVideoTemporalLayering,    /**< reference: OMX_VIDEO_CONFIG_ANDROID_TEMPORALLAYERINGTYPE */
 
+    OMX_IndexParamLowLatencyMode,                  /* add by aml */
+    OMX_IndexParam4kosd,                           /* add by aml */
+    
     /* Image & Video common configurations */
     OMX_IndexExtCommonStartUnused = OMX_IndexKhronosExtensions + 0x00700000,
 

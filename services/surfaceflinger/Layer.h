@@ -240,6 +240,13 @@ public:
      * isBlurLayer - true if this is a LayerBlur instance
      */
     virtual bool isBlurLayer() const { return false; }
+#ifdef SKIP_3D_OSDOMX_LAYER
+    virtual bool skip3DOrNot(const BufferItem& item);
+#endif
+
+#ifdef REDUCE_VIDEO_WORKLOAD
+    virtual bool dropOmxFrame(status_t &updateResult);
+#endif
 
 protected:
     /*
@@ -611,6 +618,9 @@ private:
     std::atomic<uint64_t> mCurrentFrameNumber;
     bool mRefreshPending;
     bool mFrameLatencyNeeded;
+#ifdef SKIP_3D_OSDOMX_LAYER
+    bool mSkip3D;
+#endif
     // Whether filtering is forced on or not
     bool mFiltering;
     // Whether filtering is needed b/c of the drawingstate
@@ -661,6 +671,16 @@ private:
     bool mUpdateTexImageFailed; // This is only modified from the main thread
 
     bool mAutoRefresh;
+
+#ifdef REDUCE_VIDEO_WORKLOAD
+    int32_t mOmxVideoHandle;
+    bool mOmxOverlayLayer;
+
+    // thread-safe
+    volatile int32_t mOmxFrameCount;
+    mutable Mutex mOmxFrameCountLock;
+#endif
+
     bool mFreezePositionUpdates;
     uint32_t mTransformHint;
 };

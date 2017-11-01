@@ -1075,6 +1075,19 @@ typedef struct OMX_VIDEO_CONFIG_NALSIZE {
     OMX_U32 nNaluBytes;
 } OMX_VIDEO_CONFIG_NALSIZE;
 
+/**
+ * AML RM/WMV2 Video information
+ */
+typedef struct OMX_VIDEO_INFO {
+    OMX_U32 nSize;
+    OMX_VERSIONTYPE nVersion;
+    OMX_U32 nPortIndex;
+    OMX_U8  mExtraData[128];
+    OMX_U32 nExtraDataSize;
+    OMX_U32 width;
+    OMX_U32 height;
+} OMX_VIDEO_INFO;
+
 /** @} */
 
 #ifdef __cplusplus
